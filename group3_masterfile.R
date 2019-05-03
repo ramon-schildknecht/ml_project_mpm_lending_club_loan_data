@@ -5,6 +5,8 @@ library(magrittr)
 library(janitor) # https://github.com/sfirke/janitor
 library(plotly)
 library(GGally)
+library(corrplot)
+library(PerformanceAnalytics)
 
 
 # set printing preferences
@@ -45,7 +47,7 @@ rm(data_temp_2)
 rm(dataset_3)
 
 # write copy of group 3 data
-path_file <- "./data/copy_data_group_3"
+path_file <- "./data/data_group_3"
 if (!file.exists(path_file)) {
   write_csv(d, path = "data/copy_data_group_3.csv")
 }
@@ -54,7 +56,7 @@ if (!file.exists(path_file)) {
 ######################## start from here ... ############################################################
 
 # import already generated file for group 3 
-d <- read_csv("data/copy_data_group_3.csv") #, n_max = 2000) 
+d <- read_csv("data/data_group_3.csv") #, n_max = 2000) 
 d <- as_tibble(d)
 
 
@@ -81,6 +83,9 @@ d %>%
 ## columns with NAs: 14 (about 10%)
 ## 
 ## 
+
+
+
 
 ######################################
 #
@@ -160,12 +165,27 @@ d %<>% select(int_rate, loan_amnt, revol_bal, revol_util, funded_amnt_inv, annua
              collections_12_mths_ex_med, loan_status, chargeoff_within_12_mths, 
              year_temp)
 
-ggpairs(d)
+
+# write_csv(d, path = "data/data_group_3_selected_variables.csv")
+# starting from here also possible for regression task
+d <- read_csv("data/data_group_3_selected_variables.csv")
+
+ggpairs(d[, 1:3]) 
+# ggpairs(d) # not really working for all data
+
+# show scatterplots, distributions & correlations
+set.seed(22)
+d %>%
+  sample_n(1000) %>% 
+  select(c(1:7, 16, 18, 20, 21)) %>% 
+  na.omit() %>% 
+  chart.Correlation(histogram=TRUE, pch=19) # better than cor() %>%corrplot()
+  
+
+### hier weiter ###
 plot_bar(d, with = "int_rate")
 plot_boxplot(d, by = "int_rate")
 plot_histogram(d)
-
-
 plot_scatterplot(split_columns(d)$continuous, by = "int_rate", sampled_rows = 1000L)
 split_columns(d)$continuous
 plot_correlation(d)
