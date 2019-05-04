@@ -7,6 +7,7 @@ library(plotly)
 library(GGally)
 library(corrplot)
 library(PerformanceAnalytics)
+library(caret)
 
 
 # set printing preferences
@@ -167,7 +168,7 @@ d %<>% select(int_rate, loan_amnt, revol_bal, revol_util, funded_amnt_inv, annua
 
 
 # write_csv(d, path = "data/data_group_3_selected_variables.csv")
-# starting from here also possible for regression task
+# starting from here for regression task
 d <- read_csv("data/data_group_3_selected_variables.csv")
 
 ggpairs(d[, 1:3]) 
@@ -179,41 +180,74 @@ d %>%
   sample_n(1000) %>% 
   select(c(1:7, 16, 18, 20, 21)) %>% 
   na.omit() %>% 
-  chart.Correlation(histogram=TRUE, pch=19) # better than cor() %>%corrplot()
+  chart.Correlation(histogram = TRUE, pch = 19) # better than cor() %>%corrplot()
   
 
-### hier weiter ###
+### show patterns ###
 plot_bar(d, with = "int_rate")
 plot_boxplot(d, by = "int_rate")
 plot_histogram(d)
 plot_scatterplot(split_columns(d)$continuous, by = "int_rate", sampled_rows = 1000L)
-split_columns(d)$continuous
-plot_correlation(d)
+
+
+
+# to do: variable casting to adequate data types
+## example
+d <- update_columns(d, c("term", "application_type", "home_ownership"), as.factor)
 
 
 
 
-# to do variable casting to adequate data types
-## to factor
-update_columns(d, c("Month", "Day"), as.factor)
-glimpse(d)
-
-
-## check columns
-
-# remove columns with just one value
-d <- drop_columns(d, c("policy_code", "disbursement_method"))
-d_just_chr_columns <- d[,sapply(d,is.character)]
-## todo: check frequency of character variables & how to handle them
-
+### Regression analysis ###
 
 # points to consider:
 ## 1. transform categorical variables into dummy variables
 ## 2. ...
 
 # validation set approach
-summary(d$int_rate)
-hist(d$int_rate)
+# Approach: http://www.sthda.com/english/articles/38-regression-model-validation/157-cross-validation-essentials-in-r/
+
+# remove NONE values of attribute home_ownership
+d %<>% filter(home_ownership != "NONE")
+
+# Split the data into training and test set
+set.seed(22)
+training_samples <- d$int_rate %>%
+  createDataPartition(p = 0.67, list = FALSE)
+train_data  <- d[training_samples, ]
+test_data <- d[-training_samples, ]
+
+
+# Build the model first try
+lm_model <- lm(int_rate~., data = train_data)
+summary(lm_model)
+
+# remove not significant predictors
+not_significant_variables <- c("pymnt_plan", "collections_12_mths_ex_med")
+train_data %<>% select(-not_significant_variables)
+test_data %<>% select(-not_significant_variables)
+
+# second try
+lm_model <- lm(int_rate~., data = train_data)
+summary(lm_model)
+
+# Make predictions and compute the R2, RMSE and MAE
+lm_predictions <- lm_model %>% predict(test_data)
+summary(lm_predictions)
+na_filter <- lm_predictions[!is.na(lm_predictions)]
+# show measures for model quality
+(lm_evaluation <-
+  data.frame(
+    R2 = R2(lm_predictions[na_filter], test_data$int_rate[na_filter]),
+    RMSE = RMSE(lm_predictions[na_filter], test_data$int_rate[na_filter]),
+    MAE = MAE(lm_predictions[na_filter], test_data$int_rate[na_filter])
+  ))
+# todo: interpretation, R2 higher = better, RMSE lower = better, MAE lower = better
+
+# generate prediction error rate
+RMSE(lm_predictions[na_filter], test_data$int_rate[na_filter])/mean(test_data$int_rate[na_filter])
+## todo: interpretation
+
 
 # index between 1 & max_num
 max_num <- length(d$int_rate)
